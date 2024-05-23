@@ -1,0 +1,3 @@
+C:\Users\ThomasWilk\Desktop\CS_Event_Driven_Reading.pdb
+C:\Users\ThomasWilk\Desktop\CS_ReceivePLCNotifications.pdb
+C:\Users\ThomasWilk\Desktop\CS_Event_Driven_Reading.exe

@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "dgSpecHash": "zV8+4X26IXx6QIFKuKi+TFVtLLOpHO4tjPR9X9dvm24EO6Mw/7jULRFY6YTC2N29F30eUVZ+5zDwawTN0Ll+pw==",
+  "success": true,
+  "projectFilePath": "C:\\Users\\ThomasWilk\\source\\repos\\CS_Event_Driven_Reading\\CS_Event_Driven_Reading.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\beckhoff.twincat.ads\\6.1.203\\beckhoff.twincat.ads.6.1.203.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\beckhoff.twincat.ads.abstractions\\6.1.203\\beckhoff.twincat.ads.abstractions.6.1.203.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\beckhoff.twincat.ads.server\\6.1.203\\beckhoff.twincat.ads.server.6.1.203.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\microsoft.extensions.logging.abstractions\\6.0.0\\microsoft.extensions.logging.abstractions.6.0.0.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\microsoft.net.illink.tasks\\8.0.3\\microsoft.net.illink.tasks.8.0.3.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\microsoft.win32.systemevents\\6.0.0\\microsoft.win32.systemevents.6.0.0.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\system.componentmodel.composition\\6.0.0\\system.componentmodel.composition.6.0.0.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\system.configuration.configurationmanager\\6.0.0\\system.configuration.configurationmanager.6.0.0.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\system.drawing.common\\6.0.0\\system.drawing.common.6.0.0.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\system.reactive\\6.0.0\\system.reactive.6.0.0.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\system.security.accesscontrol\\6.0.0\\system.security.accesscontrol.6.0.0.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\system.security.cryptography.protecteddata\\6.0.0\\system.security.cryptography.protecteddata.6.0.0.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\system.security.permissions\\6.0.0\\system.security.permissions.6.0.0.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\system.windows.extensions\\6.0.0\\system.windows.extensions.6.0.0.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x86\\8.0.3\\microsoft.netcore.app.runtime.win-x86.8.0.3.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x86\\8.0.3\\microsoft.windowsdesktop.app.runtime.win-x86.8.0.3.nupkg.sha512",
+    "C:\\Users\\ThomasWilk\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x86\\8.0.3\\microsoft.aspnetcore.app.runtime.win-x86.8.0.3.nupkg.sha512"
+  ],
+  "logs": []
+}
