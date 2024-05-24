@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CS_Event_Driven_Reading")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4c11397cea5e14f4b98807291b9be67c221b6cbd")]
 [assembly: System.Reflection.AssemblyProductAttribute("CS_Event_Driven_Reading")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CS_Event_Driven_Reading")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

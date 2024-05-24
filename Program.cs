@@ -7,10 +7,12 @@ using System.Runtime.CompilerServices;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.Json;
 using System.Net;
 using System.Net.Sockets;
 using System.Windows.Forms;
 using System.Drawing.Imaging;
+using System.Formats.Asn1;
 
 /*
  * 
@@ -32,14 +34,32 @@ using System.Drawing.Imaging;
  * 
  * TO DO:
  * --Add check to verify PLC is running; if it's not, do smtg else
- * 
- * 
- */
+ * --Add check -- if barcode is not 8 char, or doesn't follow certain pattern, throw error
+ *
+ * NOTES FROM EMAGIN/CALL W KYLE M.:
+    I request recipe
+    they request the specs
+    i send lot and wafer # (not sure right now how we get wafer #)
+    use s for send
+
+    send g for get results
+
+    ping to make sure keeping alive
+    they use a dual nic on their external computer; one connection is to this computer
+*/
 
 //Variable for state machine case
 int machineState = -1;
 bool firstScan = true;
 string systemStatus = "";
+
+//JSON Deserialization Options
+var options = new JsonSerializerOptions
+{
+    PropertyNameCaseInsensitive = true,
+    ReadCommentHandling = JsonCommentHandling.Skip,
+    AllowTrailingCommas = true,
+};
 
 //Variables for eMagin system
 int barcodeLength = 8;
@@ -52,6 +72,8 @@ for(int i = 0; i < recipe.Length; i++)
 {
     recipe[i] = 0;
 }
+int recipeLength = 0;
+string entireRecipe = "0";
 
 //Initialize first scan of variables
 if (firstScan)
@@ -66,45 +88,15 @@ server.Start();
 //If a connection exists, the server will accept it
 TcpClient client = server.AcceptTcpClient();
 
-/*
-    NetworkStream ns = client.GetStream(); //networkstream is used to send/receive messages
-
-    byte[] hello = new byte[100];   //any message must be serialized (converted to byte array)
-    hello = Encoding.Default.GetBytes("hello world");  //conversion string => byte array
-
-    ns.Write(hello, 0, hello.Length);     //sending the message
-
-    while (client.Connected)  //while the client is connected, we look for incoming messages
-    {
-        byte[] msg = new byte[1024];     //the messages arrive as byte array
-        ns.Read(msg, 0, msg.Length);   //the same networkstream reads the message sent by the client
-        Console.WriteLine(encoder.GetString(msg).Trim('')); //now , we write the message as string
-    }
-}
-*/
+//Instantiate the recipe class to prevent compiler errors
+EmaginRecipe emaginRecipe = new EmaginRecipe();
 
 
-/*once connection open
-I request specs
-they request the specs
-i send lot and wafer #
-use s for send
-
-send g for get results
-
-ping to make sure keeping alive
-use a dual nic
-one nic to internal network
-one nic to our machine
-
-*/
-
-
-//Main Loop
+//Main Program Loop with a statemachine
 for (;;)
 {
     //If Client is connected, send message
-    if(client.Connected)
+    if (client.Connected)
     {
         Console.WriteLine("eMagin system has connected.");
     }
@@ -150,28 +142,125 @@ for (;;)
         case 220:
             systemStatus = String.Format("Machine State {0}: Sent lot code {1} to eMagin. Now will send request to eMagin for recipe.", machineState, lotCode);
             Console.WriteLine(systemStatus);
-            NetworkStream ns2 = client.GetStream();
+            //Get the stream
+            ns = client.GetStream();
             //Send g for Get Data
             commandByte = Encoding.Default.GetBytes("g");  
-            ns2.Write(commandByte, 0, commandByte.Length);
+            ns.Write(commandByte, 0, commandByte.Length);
             machineState = 300;
             break;
         case 300:
-            //Create network stream for send/receive messages
-            NetworkStream ns3 = client.GetStream();
+            Console.WriteLine("Waiting to get response with recipe from eMagin system.");
+            //Get the stream
+            ns = client.GetStream();
             Thread.Sleep(10);
-            int recipeLength = ns3.Read(recipe, 0, recipe.Length);
-            Console.WriteLine()
+            recipeLength = ns.Read(recipe, 0, recipe.Length);
+            if(recipeLength > 0)
+            {
+                Console.WriteLine("The length of the recipe is: {0}", recipe.Length);
+                Console.WriteLine("The recipe is: {0}", Encoding.UTF8.GetString(recipe));
+                entireRecipe = Encoding.UTF8.GetString(recipe);
+            }
+            machineState = 400;
+            break;
+        case 400:
+            //Trim null characters \0 or 0x00 from the JSON data or it will give an error when deserializing:
+            entireRecipe = entireRecipe.Trim('\0');
+            Console.WriteLine("The received JSON to deserialize is: " + entireRecipe);
+
+            emaginRecipe = JsonSerializer.Deserialize<EmaginRecipe>(entireRecipe)!;
+
+            //Print 3 example values:
+            Console.WriteLine($"After Deserializing the Material ID is: {emaginRecipe.Material_ID}");
+            Console.WriteLine($"ULVAC #: {emaginRecipe.ULVAC}");
+            Console.WriteLine($"Lot Number: {emaginRecipe.LOT_NUMBER}");
+            Console.WriteLine("Sending data to PLC");
+            Thread.Sleep(10);
+            machineState = 410;
+            break;
+        case 410:
+            //In this state we need to update tags on the PLC
+            //Create a new instance of class TcAdsClient
+            AdsClient tcClient = new AdsClient();
+            AdsStream dataStream = new AdsStream(4);
+
+            uint iHandle = 0;
+            int iValue = emaginRecipe.Material_ID;
+
+            try
+            {
+                // Connect to local PLC - Runtime 1 - TwinCAT 3 Port=851
+                tcClient.Connect(851);
+
+                //Get the handle of the PLC variable
+                iHandle = tcClient.CreateVariableHandle("MAIN.Material_ID");
+
+                //do
+                //{
+                    /* I COULD DO A CHECK LATER TO READ THE PLC VALUE AND ONLY UPDATE UNDER CERTAIN CONDITIONS
+                    //Use the handle to read PLCVar
+                    tcClient.Read(iHandle, dataStream);
+                    iValue = binReader.ReadInt32();
+                    dataStream.Position = 0;
+
+                    Console.WriteLine("Current value is: " + iValue);
+                    */
+    
+                //Write values to PLC
+                tcClient.WriteAny(iHandle, emaginRecipe.Material_ID);
+
+                //Disconnect from PLC
+                tcClient.Disconnect();
+
+                //Go to state to wait for PLC's message the run is starting
+                machineState = 420;
+
+                //} while (Console.ReadKey().Key.Equals(ConsoleKey.Enter));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                Console.ReadKey();
+            }
+            finally
+            {
+                //Delete variable handle
+                tcClient.DeleteVariableHandle(iHandle);
+                tcClient.Dispose();
+            }
             break;
 
+        //Wait for PLC to say it will start run
+        case 420:
+            //In this state we need to see the tag on the PLC for "running" go high
+            //Create a new instance of class TcAdsClient
+            AdsClient tcClient2 = new AdsClient();
+            AdsStream dataStream2 = new AdsStream(4);
+
+            uint iHandleRunStart = 0;
+            bool bRunStart = false;
+
+            // Connect to local PLC - Runtime 1 - TwinCAT 3 Port=851
+            tcClient2.Connect(851);
+
+            //Get the handle of the PLC variable
+            iHandleRunStart = tcClient2.CreateVariableHandle("MAIN.bRunStart");
+
+            /*
+            //Use the handle to read PLCVar
+            tcClient2.Read(iHandleRunStart, );
+            iValue = binReader.ReadInt32();
+            dataStream.Position = 0;
+            */
+            Console.WriteLine("Current value is: " + iValue);
+
+            break;
         default:
             break;
 
     }
 
 }//End Forever loop
-
-
 
 public class PLCUpdate(int barcodeLength, byte[] initialByteArray, bool firstScan)
 {
@@ -240,15 +329,6 @@ public class PLCUpdate(int barcodeLength, byte[] initialByteArray, bool firstSca
 
     public void Client_AdsNotification(object sender, AdsNotificationEventArgs e)
     {
-        // Or here we know about UDINT type --> can be marshalled as UINT32
-        //Don't think I need this:
-        //uint nCounter = BinaryPrimitives.ReadUInt32LittleEndian(e.Data.Span);
-        // If Synchronization is needed (e.g. in Windows.Forms or WPF applications)
-        // we could synchronize via SynchronizationContext into the UI Thread
-
-        /*SynchronizationContext syncContext = SynchronizationContext.Current;
-          _context.Post(status => someLabel.Text = nCounter.ToString(), null); // Non-blocking post */
-
         Console.WriteLine("The PLC barcode data updated and this lot code update event occurred");
         CancellationToken cancel2 = CancellationToken.None;
         AdsClient clientOnLotUpdate = new AdsClient();
@@ -256,8 +336,6 @@ public class PLCUpdate(int barcodeLength, byte[] initialByteArray, bool firstSca
         uint notificationHandleLotCode = 0;
         int sizeLotCode = sizeof(UInt32);
         notificationHandleLotCode = clientOnLotUpdate.CreateVariableHandle("MAIN.sBarcodeLotNumber");
-        //Print notification handle if needed
-        //Console.WriteLine(notificationHandleLotCode);
         
         //Print Result String
         try
@@ -268,12 +346,6 @@ public class PLCUpdate(int barcodeLength, byte[] initialByteArray, bool firstSca
             byte[] buffer = new byte[byteSize];
 
             int readBytes = clientOnLotUpdate.Read(notificationHandleLotCode, buffer.AsMemory());
-
-            /*
-            Console.WriteLine("The read string is: " + buffer[0].ToString());
-            Console.WriteLine("The read string is: " + buffer[1].ToString());
-            Console.WriteLine("The read string is: " + buffer[2].ToString());
-            */
 
             //On first scan, but contents of buffer into updatedBarcodeByte
             if(firstScan==true)
@@ -313,12 +385,7 @@ public class PLCUpdate(int barcodeLength, byte[] initialByteArray, bool firstSca
 
                 }
             }
-            /*
-            for(int i = 0; i < buffer.Length; i++)
-            {
-                Console.WriteLine("The read char is: " + Convert.ToChar(buffer[i]));
-            }
-            */
+
             string value = null;
             converter.Unmarshal<string>(buffer.AsSpan(), out value);
 
@@ -328,4 +395,116 @@ public class PLCUpdate(int barcodeLength, byte[] initialByteArray, bool firstSca
             clientOnLotUpdate.DeleteVariableHandle(notificationHandleLotCode);
         }
     }
+}
+
+public class EmaginRecipe
+{
+    public int Material_ID { get; set; }
+    public string ULVAC { get; set; }
+    public string LOT_NUMBER { get; set; }
+    public string WAFER_NUMBER { get; set; }
+    public string PRODUCT { get; set; }
+    public string COLOR { get; set; }
+    public string OWNER { get; set; }
+    public string TSMC { get; set; }
+    public string STACK { get; set; }
+    public string ANODE { get; set; }
+    public string DATE_RELEASED { get; set; }
+    public string EA_NUMBER { get; set; }
+    public string LID_TYPE { get; set; }
+    public int ID1 { get; set; }
+    public int ID { get; set; }
+    public float MIN_LUM { get; set; }
+    public string PRODUCT_TYPE { get; set; }
+    public float DARK_CUR { get; set; }
+    public float LUM_LSL { get; set; }
+    public int DIMCTL { get; set; }
+    public int VGMAX { get; set; }
+    public float LUM_TYP { get; set; }
+    public float LUM_USL { get; set; }
+    public float BRIGHT_CIE_X_LSL { get; set; }
+    public int IDRF_LSL { get; set; }
+    public int IDRF_USL { get; set; }
+    public float BRIGHT_CIE_X_USL { get; set; }
+    public float BRIGHT_CIE_Y_LSL { get; set; }
+    public float BRIGHT_CIE_Y_USL { get; set; }
+    public float RED_CIE_X_LSL { get; set; }
+    public float RED_CIE_X_USL { get; set; }
+    public float GREEN_CIE_X_LSL { get; set; }
+    public float RED_CIE_Y_LSL { get; set; }
+    public float RED_CIE_Y_USL { get; set; }
+    public float GREEN_CIE_X_USL { get; set; }
+    public float BLUE_CIE_X_LSL { get; set; }
+    public float GREEN_CIE_Y_LSL { get; set; }
+    public float GREEN_CIE_Y_USL { get; set; }
+    public float BLUE_CIE_X_USL { get; set; }
+    public float BLUE_CIE_Y_LSL { get; set; }
+    public float BLUE_CIE_Y_USL { get; set; }
+    public float SLOPE_LSL { get; set; }
+    public float SLOPE_USL { get; set; }
+    public float ORIG1_LSL { get; set; }
+    public float ORIG1_USL { get; set; }
+    public float VGN0_LSL { get; set; }
+    public float VGN0_USL { get; set; }
+    public float VGN1_LSL { get; set; }
+    public float VGN1_USL { get; set; }
+    public float VGN2_LSL { get; set; }
+    public float VGN2_USL { get; set; }
+    public float VGN3_LSL { get; set; }
+    public float VGN3_USL { get; set; }
+    public float VGN4_LSL { get; set; }
+    public float VGN4_USL { get; set; }
+    public float VGN5_LSL { get; set; }
+    public float VGN5_USL { get; set; }
+    public float VGN6_LSL { get; set; }
+    public float VGN6_USL { get; set; }
+    public float VGN7_LSL { get; set; }
+    public float VGN7_USL { get; set; }
+    public float LAU_LSL { get; set; }
+    public float LOW_VGN0_LSL { get; set; }
+    public float LOW_VGN0_USL { get; set; }
+    public float LOW_VGN1_LSL { get; set; }
+    public float LOW_VGN1_USL { get; set; }
+    public float LOW_VGN2_LSL { get; set; }
+    public float LOW_VGN2_USL { get; set; }
+    public float LOW_VGN3_LSL { get; set; }
+    public float LOW_VGN3_USL { get; set; }
+    public float LOW_VGN4_LSL { get; set; }
+    public float LOW_VGN4_USL { get; set; }
+    public float LOW_VGN5_LSL { get; set; }
+    public float LOW_VGN5_USL { get; set; }
+    public float LOW_VGN6_LSL { get; set; }
+    public float LOW_VGN6_USL { get; set; }
+    public float LOW_VGN7_LSL { get; set; }
+    public float LOW_VGN7_USL { get; set; }
+    public float DISPOFF_5V_I_LSL { get; set; }
+    public float DISPOFF_5V_I_USL { get; set; }
+    public float DISPOFF_2V5_I_LSL { get; set; }
+    public float DISPOFF_2V5_I_USL { get; set; }
+    public float DISPOFF_1V8_I_LSL { get; set; }
+    public float DISPOFF_1V8_I_USL { get; set; }
+    public float GL0_5V_I_LSL { get; set; }
+    public float GL0_5V_I_USL { get; set; }
+    public float GL0_4V_I_LSL { get; set; }
+    public float GL0_4V_I_USL { get; set; }
+    public float GL0_3V3_I_LSL { get; set; }
+    public float GL0_3V3_I_USL { get; set; }
+    public float GL0_2V5_I_LSL { get; set; }
+    public float GL0_2V5_I_USL { get; set; }
+    public float GL0_1V8_I_LSL { get; set; }
+    public float GL0_1V8_I_USL { get; set; }
+    public float GL0_VCOM_I_LSL { get; set; }
+    public float GL0_VCOM_I_USL { get; set; }
+    public float GL255_5V_I_LSL { get; set; }
+    public float GL255_5V_I_USL { get; set; }
+    public float GL255_4V_I_LSL { get; set; }
+    public float GL255_4V_I_USL { get; set; }
+    public float GL255_3V3_I_LSL { get; set; }
+    public float GL255_3V3_I_USL { get; set; }
+    public float GL255_2V5_I_LSL { get; set; }
+    public float GL255_2V5_I_USL { get; set; }
+    public float GL255_1V8_I_LSL { get; set; }
+    public float GL255_1V8_I_USL { get; set; }
+    public float GL255_VCOM_I_LSL { get; set; }
+    public float GL255_VCOM_I_USL { get; set; }
 }

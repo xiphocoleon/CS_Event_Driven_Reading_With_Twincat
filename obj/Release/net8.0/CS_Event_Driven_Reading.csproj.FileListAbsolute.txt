@@ -38,3 +38,4 @@ C:\Users\ThomasWilk\source\repos\CS_Event_Driven_Reading\obj\Release\net8.0\refi
 C:\Users\ThomasWilk\source\repos\CS_Event_Driven_Reading\obj\Release\net8.0\CS_Event_Driven_Reading.pdb
 C:\Users\ThomasWilk\source\repos\CS_Event_Driven_Reading\obj\Release\net8.0\CS_Event_Driven_Reading.genruntimeconfig.cache
 C:\Users\ThomasWilk\source\repos\CS_Event_Driven_Reading\obj\Release\net8.0\ref\CS_Event_Driven_Reading.dll
+C:\Users\ThomasWilk\source\repos\CS_Event_Driven_Reading\obj\Release\net8.0\CS_Event_Driven_Reading.sourcelink.json
